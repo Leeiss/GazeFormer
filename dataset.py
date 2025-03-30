@@ -58,7 +58,11 @@ class COCOSearch18Collator(object):
         batch_tgt_x = pad_sequence(batch_tgt_x, padding_value=self.PAD[1])[:, :-1].unsqueeze(-1)
         batch_tgt_t = pad_sequence(batch_tgt_t, padding_value=self.PAD[2])[:, :-1].unsqueeze(-1)
 
-        batch_imgs = torch.cat(batch_imgs, dim = 0)
+        batch_imgs = [img for img in batch_imgs if img is not None]
+        if len(batch_imgs) == 0:
+            raise ValueError("Все изображения в batch отсутствуют!")
+
+        batch_imgs = torch.cat(batch_imgs, dim=0)
         batch_tgt = torch.cat([batch_tgt_y, batch_tgt_x, batch_tgt_t], dim = -1).long().permute(1, 0, 2)
         batch_firstfix = torch.tensor([(self.im_h//2)*self.patch_size, (self.im_w//2)*self.patch_size]).unsqueeze(0).repeat(batch_imgs.size(0), 1)
         batch_tgt_padding_mask = batch_tgt[:, :, 0] == self.PAD[0]
