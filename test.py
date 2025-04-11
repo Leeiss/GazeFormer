@@ -38,11 +38,11 @@ def run_model(model, src, task, device = "cuda:0", im_h=20, im_w=32, patch_size 
                 break
         scanpaths.append(np.array(scanpath))
     return scanpaths
-    
-    
+
+
 def test(args):
     trained_model = args.trained_model
-    device = torch.device('cuda:{}'.format(args.cuda))
+    device = torch.device('cpu')
     transformer = Transformer(num_encoder_layers=args.num_encoder, nhead = args.nhead, d_model = args.hidden_dim, num_decoder_layers=args.num_decoder, dim_feedforward = args.hidden_dim, img_hidden_dim = args.img_hidden_dim, lm_dmodel = args.lm_hidden_dim, device = device).to(device)
     model = gazeformer(transformer = transformer, spatial_dim = (args.im_h, args.im_w), max_len = args.max_len, device = device).to(device)
     model.load_state_dict(torch.load(trained_model, map_location=device)['model'])
@@ -65,7 +65,7 @@ def test(args):
                                      traj['name'][:-4], traj['subject'])
 
         t_dict[key] = np.array(traj['T'])
-    
+
     test_task_img_pairs = np.unique([traj['task'] + '_' + traj['name'] + '_' + traj['condition'] for traj in test_target_trajs])
     embedding_dict = np.load(open(join(dataset_root, 'embeddings.npy'), mode='rb'), allow_pickle = True).item()
     pred_list = []
@@ -81,22 +81,29 @@ def test(args):
 
     predictions = postprocessScanpaths(pred_list)
     fix_clusters = np.load(join('./data', 'clusters.npy'), allow_pickle=True).item()
-    
+
     print("Calculating Sequence Score...")
     seq_score = get_seq_score(predictions, fix_clusters, max_len)
     print("Calculating Sequence Score with Duration...")
     seq_score_t = get_seq_score_time(predictions, fix_clusters, max_len, t_dict)
     return seq_score, seq_score_t
-    
+
 def main(args):
     seed_everything(args.seed)
     seq_score, seq_score_t = test(args)
     print('Sequence Score : {:.3f}, Sequence Score with Duration : {:.3f}'.format(seq_score, seq_score_t))
-        
-    
-    
+
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('Gaze Transformer Test', parents=[get_args_parser_test()])
     args = parser.parse_args()
     main(args)
-    
+
+    python3.10 test.py \
+  --trained_model=/content/Gazeformer/checkpoints/gazeformer_cocosearch_TP.pkg \
+  --dataset_dir=C:/Users/farra/OneDrive/Рабочий стол/для учебы/курсовая/модель/распакованные/filtered_image_features  \
+  --img_ftrs_dir=/content/Gazeformer/dataset/resnet-features \
+  --cuda=0
+
+    python3 train.py --C:/Users/farra/OneDrive/Рабочий стол/для учебы/курсовая/модель/распакованные/filtered_image_features --img_ftrs_dir=<precomputed-image-features-directory> --cuda=<device-id>
