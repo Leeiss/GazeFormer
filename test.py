@@ -10,6 +10,10 @@ from gazeformer import gazeformer
 from utils import seed_everything, get_args_parser_test
 from metrics import postprocessScanpaths, get_seq_score, get_seq_score_time, get_semantic_seq_score
 from tqdm import tqdm
+import matplotlib.pyplot as plt
+import os
+
+
 
 warnings.filterwarnings("ignore")
 
@@ -100,9 +104,24 @@ def test(args):
         image_ftrs = torch.load(join(img_ftrs_dir, task_name.replace(' ', '_'), name.replace('jpg', 'pth'))).unsqueeze(0)
         task_emb = embedding_dict[task_name]
 
+
         scanpaths = run_model(model=model, src=image_ftrs, task=task_emb, device=device, num_samples=args.num_samples)
+        save_dir = "./predicted_scanpaths"
+        os.makedirs(save_dir, exist_ok=True)
+
         for idx, scanpath in enumerate(scanpaths):
-            pred_list.append((task_name, name, condition, idx + 1, scanpath))
+            plt.figure(figsize=(6, 6))
+            y, x, t = scanpath[:, 0], scanpath[:, 1], scanpath[:, 2]
+            plt.plot(x, y, '-o', label=f'Scanpath {idx+1}')
+            plt.gca().invert_yaxis()
+            plt.title(f"Predicted Scanpath for {name}")
+            plt.xlabel("X")
+            plt.ylabel("Y")
+            plt.legend()
+            plt.grid(True)
+            plt.savefig(os.path.join(save_dir, f"{name}_pred_scanpath_{idx+1}.png"))
+            plt.close()
+
 
     predictions = postprocessScanpaths(pred_list)
     fix_clusters = np.load(join('./data', 'clusters.npy'), allow_pickle=True).item()
