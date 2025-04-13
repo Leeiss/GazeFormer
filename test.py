@@ -133,14 +133,16 @@ def test(args):
     seq_score_t = get_seq_score_time(predictions, fix_clusters, max_len, t_dict)
 
     # === SEMANTIC SEQUENCE SCORE ===
-    segmentation_map_dir = "/content/Gazeformer/SemSS/stuffthing_maps"
+    segmentation_map_dir = args.stuff_map_dir
 
     if args.condition == 'present':
-        with open('test_TP_Sem.pkl', "rb") as r:
-            fixations_dict = pickle.load(r)
+        sem_file = os.path.join(args.sem_dir, 'test_TP_Sem.pkl')
     elif args.condition == 'absent':
-        with open('test_TA_Sem.pkl', "rb") as r:
-            fixations_dict = pickle.load(r)
+        sem_file = os.path.join(args.sem_dir, 'test_TA_Sem.pkl')
+
+    with open(sem_file, "rb") as r:
+        fixations_dict = pickle.load(r)
+
 
     print("Calculating Semantic Sequence Score...")
     sem_seq_score = get_semantic_seq_score(predictions, fixations_dict, max_len, segmentation_map_dir)
