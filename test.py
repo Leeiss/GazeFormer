@@ -106,22 +106,8 @@ def test(args):
 
 
         scanpaths = run_model(model=model, src=image_ftrs, task=task_emb, device=device, num_samples=args.num_samples)
-        save_dir = "./predicted_scanpaths"
-        os.makedirs(save_dir, exist_ok=True)
-
         for idx, scanpath in enumerate(scanpaths):
-            plt.figure(figsize=(6, 6))
-            y, x, t = scanpath[:, 0], scanpath[:, 1], scanpath[:, 2]
-            plt.plot(x, y, '-o', label=f'Scanpath {idx+1}')
-            plt.gca().invert_yaxis()
-            plt.title(f"Predicted Scanpath for {name}")
-            plt.xlabel("X")
-            plt.ylabel("Y")
-            plt.legend()
-            plt.grid(True)
-            plt.savefig(os.path.join(save_dir, f"{name}_pred_scanpath_{idx+1}.png"))
-            plt.close()
-
+            pred_list.append((task_name, name, condition, idx + 1, scanpath))
 
     predictions = postprocessScanpaths(pred_list)
     fix_clusters = np.load(join('./data', 'clusters.npy'), allow_pickle=True).item()
