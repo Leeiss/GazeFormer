@@ -1,11 +1,18 @@
 import argparse
-import torch
+from os.path import join
+import json
 import numpy as np
+import torch
+import pickle
+import warnings
 from models import Transformer
 from gazeformer import gazeformer
+from utils import seed_everything, get_args_parser_predict
 from tqdm import tqdm
 import os
-import json
+
+warnings.filterwarnings("ignore")
+
 
 def run_model(model, src, task, device="cuda:0", im_h=20, im_w=32, patch_size=16, num_samples=1):
     src = src.to(device).repeat(num_samples, 1, 1)
@@ -33,10 +40,9 @@ def run_model(model, src, task, device="cuda:0", im_h=20, im_w=32, patch_size=16
     return scanpaths
 
 
-def generate_scanpaths(args):
-    device = torch.device(f'cuda:{args.cuda}')
+def test(args):
+    device = torch.device(f'cuda:{args.cuda}' if torch.cuda.is_available() else 'cpu')
 
-    # Создаем трансформер и модель
     transformer = Transformer(
         num_encoder_layers=args.num_encoder,
         nhead=args.nhead,
@@ -55,55 +61,72 @@ def generate_scanpaths(args):
         device=device
     ).to(device)
 
-    # Загружаем веса модели
+    print("[✓] Loading the model...")
     model.load_state_dict(torch.load(args.trained_model, map_location=device)['model'])
     model.eval()
 
-    # Загружаем эмбеддинги задач
-    embedding_dict = np.load(open(join(args.dataset_dir, 'embeddings.npy'), mode='rb'), allow_pickle=True).item()
+    # === Dataset settings ===
+    dataset_root = args.dataset_dir
+    img_ftrs_dir = args.img_ftrs_dir
 
-    # Загружаем признаки изображения
-    image_ftrs = torch.load(join(args.img_ftrs_dir, args.task_name.replace(' ', '_'), args.image_name.replace('jpg', 'pth'))).unsqueeze(0)
-    task_emb = embedding_dict[args.task_name]
+    # === Target from args ===
+    target_task = args.target_task
+    target_image = args.target_image
+    target_condition = args.target_condition
+    target_key = f"{target_task}_{target_image}_{target_condition}"
 
-    # Генерируем сканпафы
+    # === Load fixations ===
+    fixation_path = join(dataset_root, 'coco_search18_fixations_TP_test.json')
+    if target_condition == 'absent':
+        fixation_path = join(dataset_root, 'coco_search18_fixations_TA_test.json')
+
+    print(f"[✓] Loading fixations from {fixation_path}...")
+    with open(fixation_path) as json_file:
+        human_scanpaths = json.load(json_file)
+
+    test_target_trajs = list(filter(lambda x: x['split'] == 'test' and x['condition'] == target_condition, human_scanpaths))
+    test_task_img_pairs = np.unique([
+        traj['task'] + '_' + traj['name'] + '_' + traj['condition']
+        for traj in test_target_trajs
+    ])
+
+    if target_key not in test_task_img_pairs:
+        print(f"[!] Target '{target_key}' not found in test set.")
+        return
+
+    print(f"[✓] Found target '{target_key}', running inference...")
+
+    # === Run model ===
+    embedding_dict = np.load(open(join(dataset_root, 'embeddings.npy'), mode='rb'), allow_pickle=True).item()
+    image_ftrs = torch.load(join(img_ftrs_dir, target_task.replace(' ', '_'), target_image.replace('jpg', 'pth')), map_location=device).unsqueeze(0)
+    task_emb = embedding_dict[target_task]
+
+    print(f"[✓] Running model for task: {target_task}, image: {target_image} on {device}...")
     scanpaths = run_model(model=model, src=image_ftrs, task=task_emb, device=device, num_samples=args.num_samples)
 
-    # Сохраняем или выводим результаты
     for idx, scanpath in enumerate(scanpaths):
-        print(f"Scanpath {idx + 1} for {args.task_name} and {args.image_name}:")
-        print(scanpath)
+        print(f"\n[✓] Predicted Scanpath #{idx + 1}:")
+        for y, x, t in scanpath:
+            print(f"x: {x:.2f}, y: {y:.2f}, t: {t:.2f}")
 
-    # Можно также сохранить сканпафы в файл, если нужно
-    if args.save_scanpaths:
-        output_filename = f"scanpaths_{args.image_name}_{args.task_name}.npy"
-        np.save(output_filename, scanpaths)
-        print(f"Scanpaths saved to {output_filename}")
+
 
 def main(args):
-    generate_scanpaths(args)
+    seed_everything(args.seed)
+    print("[✓] Starting test process...")
+    test(args)  # запускаем тестовую функцию
+
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser('Generate Scanpaths', description="Generate gaze scanpaths for a given image and task")
-    parser.add_argument('--trained_model', required=True, help="Path to the trained model (.pth file)")
-    parser.add_argument('--dataset_dir', required=True, help="Path to the dataset directory")
-    parser.add_argument('--img_ftrs_dir', required=True, help="Directory containing image feature files")
-    parser.add_argument('--task_name', required=True, help="Name of the task")
-    parser.add_argument('--image_name', required=True, help="Name of the image (without extension)")
-    parser.add_argument('--num_samples', type=int, default=1, help="Number of scanpaths to generate")
-    parser.add_argument('--cuda', type=int, default=-1, help="CUDA device number (-1 for CPU)")
-    parser.add_argument('--save_scanpaths', type=bool, default=False, help="Whether to save generated scanpaths to a file")
-    parser.add_argument('--im_h', type=int, default=20, help="Height of the image")
-    parser.add_argument('--im_w', type=int, default=32, help="Width of the image")
-    parser.add_argument('--patch_size', type=int, default=16, help="Size of the patches")
-    parser.add_argument('--max_len', type=int, default=100, help="Maximum length of the sequence")
-    parser.add_argument('--num_encoder', type=int, default=6, help="Number of encoder layers")
-    parser.add_argument('--nhead', type=int, default=8, help="Number of attention heads")
-    parser.add_argument('--hidden_dim', type=int, default=512, help="Dimension of the hidden layers")
-    parser.add_argument('--num_decoder', type=int, default=6, help="Number of decoder layers")
-    parser.add_argument('--img_hidden_dim', type=int, default=512, help="Hidden dimension for image processing")
-    parser.add_argument('--lm_hidden_dim', type=int, default=512, help="Hidden dimension for language model")
-
+    parser = argparse.ArgumentParser('Gaze Transformer Test', parents=[get_args_parser_predict()])
     args = parser.parse_args()
     main(args)
 
+# python3 predict_scanpath.py \
+#     --trained_model ./checkpoints/gazeformer_cocosearch_TP.pkg \
+#     --dataset_dir ./dataset \
+#     --img_ftrs_dir ./dataset/image_features \
+#     --target_task car \
+#     --target_image 000000491881.jpg \
+#     --target_condition present \
+#     --num_samples 5
