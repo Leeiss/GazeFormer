@@ -110,6 +110,15 @@ def get_args_parser_predict():
 
     return parser
 
+def get_args_parser_working_with_model():
+    parser = argparse.ArgumentParser('Gaze Transformer Worker', add_help=False)
+
+    parser.add_argument('--target_task', type=str, required=True, help="Target task to evaluate (e.g., 'car')")
+    parser.add_argument('--target_image', type=str, required=True, help="Target image filename (e.g., '000000491881.jpg')")
+    parser.add_argument('--target_condition', type=str, required=True, choices=['present', 'absent'], help="Search condition for target image")
+
+    return parser
+
 
 def save_model_train(epoch, args, model, SlowOpt, MidOpt, FastOpt, model_dir, model_name):
     state = {
