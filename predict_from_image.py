@@ -81,8 +81,14 @@ def test_single_image(args, image_path):
     device = torch.device(f'cuda:{args.cuda}' if torch.cuda.is_available() else 'cpu')
 
     print(f"📷 Preprocessing image: {image_path}")
-    img_tensor = preprocess_image(image_path, image_size=(512, 320))
+
+    img = Image.open(image_path).convert("RGB")  # Загрузка изображения
+    fixed_img = resize_and_pad(img, target_size=(512, 320))  # Фиксация и изменение размера изображения
+
+    img_tensor = preprocess_image(fixed_img, image_size=(512, 320))  # Предобработка изображения
     image_ftrs = extract_features_resnetcoco(img_tensor, device)
+
+
 
     # Загружаем эмбеддинг
     embedding_dict = np.load(open(join(args.dataset_dir, 'embeddings.npy'), mode='rb'), allow_pickle=True).item()
