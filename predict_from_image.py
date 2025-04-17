@@ -2,12 +2,12 @@ import argparse
 import torch
 import numpy as np
 from PIL import Image
-from torchvision import models, transforms
+from torchvision import transforms
 from os.path import join
 import warnings
 import os
 
-from models import Transformer
+from models import Transformer, ResNetCOCO
 from gazeformer import gazeformer
 from utils import seed_everything, get_args_parser_predict
 from tqdm import tqdm
@@ -19,21 +19,19 @@ def preprocess_image(image_path, image_size=(512, 320)):
     transform = transforms.Compose([
         transforms.Resize(image_size),
         transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406],  # стандартные значения для ImageNet
+        transforms.Normalize(mean=[0.485, 0.456, 0.406],
                              std=[0.229, 0.224, 0.225])
     ])
     img = Image.open(image_path).convert('RGB')
-    return transform(img).unsqueeze(0)  # добавим batch dim
+    return transform(img).unsqueeze(0)
 
 
-def extract_features_resnet(img_tensor, device):
-    model = models.resnet50(pretrained=True)
-    model = torch.nn.Sequential(*list(model.children())[:-2])  # убираем последние слои (FC и pooling)
-    model = model.to(device)
+def extract_features_resnetcoco(img_tensor, device):
+    model = ResNetCOCO(device=device).to(device)
     model.eval()
     with torch.no_grad():
-        features = model(img_tensor.to(device))
-    return features.squeeze(0)  # [2048, H, W]
+        features = model(img_tensor.to(device)).squeeze().detach().cpu()
+    return features
 
 
 def run_model(model, src, task, device="cuda:0", im_h=20, im_w=32, patch_size=16, num_samples=1):
@@ -65,16 +63,14 @@ def run_model(model, src, task, device="cuda:0", im_h=20, im_w=32, patch_size=16
 def test_single_image(args, image_path):
     device = torch.device(f'cuda:{args.cuda}' if torch.cuda.is_available() else 'cpu')
 
-    # Загружаем и обрабатываем изображение
     print(f"📷 Preprocessing image: {image_path}")
     img_tensor = preprocess_image(image_path, image_size=(512, 320))
-    image_ftrs = extract_features_resnet(img_tensor, device).view(2048, -1).permute(1, 0)  # -> [H*W, C]
+    image_ftrs = extract_features_resnetcoco(img_tensor, device)
 
     # Загружаем эмбеддинг
     embedding_dict = np.load(open(join(args.dataset_dir, 'embeddings.npy'), mode='rb'), allow_pickle=True).item()
     task_emb = embedding_dict[args.target_task]
 
-    # Инициализируем модель
     transformer = Transformer(
         num_encoder_layers=args.num_encoder,
         nhead=args.nhead,
@@ -110,7 +106,7 @@ def test_single_image(args, image_path):
     )
 
     for i, scanpath in enumerate(scanpaths):
-        print(f"\n Scanpath {i + 1}:")
+        print(f"\n📌 Scanpath {i + 1}:")
         for fix in scanpath:
             print(f"x: {fix[1]}, y: {fix[0]}, t: {fix[2]}")
 
@@ -119,18 +115,18 @@ def test_single_image(args, image_path):
 
 def main(args):
     seed_everything(args.seed)
-
-    # путь к своему изображению
-    image_path = args.input_image  # задаётся через аргумент
+    image_path = args.input_image
     test_single_image(args, image_path)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('Gaze Transformer Test (Image File)', parents=[get_args_parser_predict()])
     parser.add_argument('--input_image', type=str, required=True, help='Path to input image')
-
     args = parser.parse_args()
 
-   
+    # Настраиваем вручную, если запускаем как скрипт
+    args.target_task = 'car'
+    args.target_condition = 'present'
+    args.target_image = os.path.basename(args.input_image)
 
     main(args)
