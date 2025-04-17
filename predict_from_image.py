@@ -14,16 +14,33 @@ from tqdm import tqdm
 
 warnings.filterwarnings("ignore")
 
+def resize_and_pad(img, target_size=(512, 320), pad_color=(0, 0, 0)):
+    original_w, original_h = img.size
+    target_w, target_h = target_size
+
+    scale = min(target_w / original_w, target_h / original_h)
+    new_w = int(original_w * scale)
+    new_h = int(original_h * scale)
+
+    resized_img = img.resize((new_w, new_h), Image.LANCZOS)
+    new_img = Image.new("RGB", target_size, pad_color)
+    upper_left_x = (target_w - new_w) // 2
+    upper_left_y = (target_h - new_h) // 2
+    new_img.paste(resized_img, (upper_left_x, upper_left_y))
+
+    return new_img
+
 
 def preprocess_image(image_path, image_size=(512, 320)):
     transform = transforms.Compose([
-        transforms.Resize(image_size),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406],
                              std=[0.229, 0.224, 0.225])
     ])
     img = Image.open(image_path).convert('RGB')
+    img = resize_and_pad(img, image_size)
     return transform(img).unsqueeze(0)
+
 
 
 def extract_features_resnetcoco(img_tensor, device):
@@ -124,10 +141,10 @@ if __name__ == '__main__':
     parser.add_argument('--input_image', type=str, required=True, help='Path to input image')
     args = parser.parse_args()
 
-    # 👇 Добавь эти строчки
+
     args.im_h = 10
     args.im_w = 16
-    args.patch_size = 16  # (если не задано внутри get_args_parser_predict)
+    args.patch_size = 16
 
     args.target_task = 'car'
     args.target_condition = 'present'
