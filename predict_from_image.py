@@ -124,7 +124,11 @@ if __name__ == '__main__':
     parser.add_argument('--input_image', type=str, required=True, help='Path to input image')
     args = parser.parse_args()
 
-    # Настраиваем вручную, если запускаем как скрипт
+    # 👇 Добавь эти строчки
+    args.im_h = 10
+    args.im_w = 16
+    args.patch_size = 16  # (если не задано внутри get_args_parser_predict)
+
     args.target_task = 'car'
     args.target_condition = 'present'
     args.target_image = os.path.basename(args.input_image)
