@@ -1,4 +1,3 @@
-
 import argparse
 import torch
 import numpy as np
@@ -38,8 +37,8 @@ def preprocess_image(image_path, image_size=(512, 320)):
         transforms.Normalize(mean=[0.485, 0.456, 0.406],
                              std=[0.229, 0.224, 0.225])
     ])
-    img = Image.open(image_path).convert('RGB')
-    img = resize_and_pad(img, image_size)
+    img = Image.open(image_path).convert('RGB')  # Открытие изображения
+    img = resize_and_pad(img, image_size)  # Изменение размера и паддинг
     return transform(img).unsqueeze(0)
 
 
@@ -82,13 +81,11 @@ def test_single_image(args, image_path):
 
     print(f"📷 Preprocessing image: {image_path}")
 
-    img = Image.open(image_path).convert("RGB")  # Загрузка изображения
-    fixed_img = resize_and_pad(img, target_size=(512, 320))  # Фиксация и изменение размера изображения
+    # Загружаем изображение
+    fixed_img = preprocess_image(image_path, image_size=(512, 320))  # Предобработка изображения
 
-    img_tensor = preprocess_image(fixed_img, image_size=(512, 320))  # Предобработка изображения
+    img_tensor = preprocess_image(image_path, image_size=(512, 320))  # Предобработка изображения
     image_ftrs = extract_features_resnetcoco(img_tensor, device)
-
-
 
     # Загружаем эмбеддинг
     embedding_dict = np.load(open(join(args.dataset_dir, 'embeddings.npy'), mode='rb'), allow_pickle=True).item()
@@ -136,8 +133,7 @@ def test_single_image(args, image_path):
         ts = [float(x[2]) for x in path]
         fixation_list.append({"X": xs, "Y": ys, "T": ts})
 
-
-    fixed_img = resize_and_pad(image_path, target_size=(512, 320))
+    fixed_img = resize_and_pad(Image.open(image_path).convert("RGB"), target_size=(512, 320))
     fixed_img_np = np.array(fixed_img)
     height, width, _ = fixed_img_np.shape
 
@@ -224,7 +220,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser('Gaze Transformer Test (Image File)', parents=[get_args_parser_predict()])
     parser.add_argument('--input_image', type=str, required=True, help='Path to input image')
     args = parser.parse_args()
-
 
     args.im_h = 10
     args.im_w = 16
