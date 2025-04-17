@@ -1,12 +1,11 @@
 import argparse
-from os.path import join
-import json
-import numpy as np
 import torch
+import numpy as np
+from os.path import join
 
 from models import Transformer
 from gazeformer import gazeformer
-from utils import seed_everything, get_args_parser_test
+from utils import seed_everything, get_args_parser_predict
 from tqdm import tqdm
 import warnings
 
@@ -60,20 +59,18 @@ def test_single_case(args):
         device=device
     ).to(device)
 
-    print("📦 Loading model...")
+    print("Loading model...")
     model.load_state_dict(torch.load(args.trained_model, map_location=device)['model'])
     model.eval()
 
     dataset_root = args.dataset_dir
     img_ftrs_dir = args.img_ftrs_dir
 
-    # Загружаем эмбеддинги
     embedding_dict = np.load(open(join(dataset_root, 'embeddings.npy'), mode='rb'), allow_pickle=True).item()
     task_name = args.target_task
     image_name = args.target_image
     condition = args.target_condition
 
-    # Загружаем фичи изображения
     image_ftrs_path = join(img_ftrs_dir, task_name.replace(' ', '_'), image_name.replace('jpg', 'pth'))
     image_ftrs = torch.load(image_ftrs_path).unsqueeze(0)
     task_emb = embedding_dict[task_name]
@@ -104,12 +101,8 @@ def main(args):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser('Gaze Transformer Test (Single Case)', parents=[get_args_parser_test()])
-    args = parser.parse_args()
+    parser = get_args_parser_predict()
 
-    # Пример конкретного случая (можно изменить прямо здесь)
-    args.target_task = 'car'
-    args.target_image = '000000491881.jpg'
-    args.target_condition = 'present'
+    args = parser.parse_args()
 
     main(args)
