@@ -10,11 +10,55 @@ from matplotlib.colors import Normalize
 import torchvision.transforms as T
 from models import Transformer, ResNetCOCO
 from gazeformer import gazeformer
-from utils import seed_everything, get_args_parser_predict
+from utils import seed_everything, get_args_parser_streamlit
 from tqdm import tqdm
 import warnings
+import pandas as pd
+import streamlit as st
 
 warnings.filterwarnings("ignore")
+
+
+task_map = {
+    'bottle': 'Бутылка',
+    'bowl': 'Тарелка',
+    'car': 'Автомобиль',
+    'chair': 'Стул',
+    'clock': 'Часы',
+    'cup': 'Чашка',
+    'fork': 'Вилка',
+    'keyboard': 'Kлавиатура',
+    'knife': 'Нож',
+    'laptop': 'Ноутбук',
+    'microwave': 'Микроволновка',
+    'mouse': 'Мышь',
+    'oven': 'Духовка',
+    'potted plant': 'Растение в горшке',
+    'sink': 'Раковина',
+    'stop sign': 'Стоп знак',
+    'toilet': 'Туалет',
+    'tv': 'Телевизор'
+}
+
+def resize_with_padding(img, target_size=(512, 320), fill_color=(0, 0, 0)):
+    img_ratio = img.width / img.height
+    target_ratio = target_size[0] / target_size[1]
+
+    if img_ratio > target_ratio:
+        new_width = target_size[0]
+        new_height = int(target_size[0] / img_ratio)
+    else:
+        new_height = target_size[1]
+        new_width = int(target_size[1] * img_ratio)
+
+    img_resized = img.resize((new_width, new_height), Image.ANTIALIAS)
+
+    # Создаём новое изображение с чёрным фоном
+    new_img = Image.new("RGB", target_size, fill_color)
+    paste_x = (target_size[0] - new_width) // 2
+    paste_y = (target_size[1] - new_height) // 2
+    new_img.paste(img_resized, (paste_x, paste_y))
+    return new_img
 
 
 def extract_features_from_image(image_path, device, resize_dim=(640, 1024)):
@@ -136,7 +180,7 @@ def save_heatmap(base_img, heatmap, filename):
     plt.close()
 
 
-def test_single_case(args):
+def test_single_case(args, image_path, selected_task_name):
     device = torch.device(f'cuda:{args.cuda}' if torch.cuda.is_available() else 'cpu')
 
     transformer = Transformer(
@@ -164,8 +208,7 @@ def test_single_case(args):
     dataset_root = args.dataset_dir
 
     embedding_dict = np.load(open(join(dataset_root, 'embeddings.npy'), mode='rb'), allow_pickle=True).item()
-    task_name = args.target_task
-    image_path = args.target_image
+
 
 
     if image_path.endswith('.jpg') or image_path.endswith('.png'):
@@ -177,9 +220,9 @@ def test_single_case(args):
     else:
         raise ValueError("Unsupported file type. Only .jpg, .png, and .pth are supported.")
 
-    task_emb = embedding_dict[task_name]
+    task_emb = embedding_dict[selected_task_name]
 
-    print(f"Running inference for {task_name} | {os.path.basename(image_path)} ")
+    print(f"Running inference for {selected_task_name} | {os.path.basename(image_path)} ")
     scanpaths = run_model(
         model=model,
         src=image_ftrs,
@@ -210,11 +253,58 @@ def test_single_case(args):
 
 
 def main(args):
-    seed_everything(args.seed)
-    test_single_case(args)
+    st.title("GazeFormer: Предсказание взгляда")
+
+    uploaded_file = st.file_uploader("Загрузите изображение (.jpg/.png)", type=["jpg", "png"])
+
+    if uploaded_file:
+        original_image = Image.open(uploaded_file).convert("RGB")
+        image = resize_with_padding(original_image, target_size=(512, 320))
+
+        st.image(image, caption="Исходное изображение", use_container_width=True)
+
+        # Сохраняем обработанное изображение во временный файл
+        temp_image_path = "temp_image.jpg"
+        image.save(temp_image_path)
+
+        # Опции отображения
+        st.sidebar.subheader("Опции отображения")
+
+        show_heatmap_simple = st.sidebar.checkbox("Тепловая карта (простая)", value=False)
+        show_heatmap_weighted = st.sidebar.checkbox("Тепловая карта (по времени)", value=True)
+        show_trajectory = st.sidebar.checkbox("Траектория движения глаз", value=False)
+        show_coords = st.sidebar.checkbox("Показать предсказанные координаты", value=False)
+        show_all = st.sidebar.checkbox("Показать всё", value=False)
+
+        task_list = list(task_map.values())
+        selected_task = st.sidebar.selectbox("Что находится на изображении?", task_list)
+
+        selected_task_name = [task for task, ru in task_map.items() if ru == selected_task][0]
+
+        seed_everything(args.seed)
+        scanpaths = test_single_case(args, temp_image_path, selected_task_name)
+
+        st.subheader("Результаты моделирования взгляда:")
+
+        if show_all or show_heatmap_simple:
+            st.image("heatmap_simple.png", caption="Простая тепловая карта")
+
+        if show_all or show_heatmap_weighted:
+            st.image("heatmap_weighted.png", caption="Взвешенная тепловая карта (по времени)")
+
+        if show_all or show_coords:
+            st.subheader("Таблица предсказанных данных")
+            for i, path in enumerate(scanpaths):
+                df = path.copy()
+                df_swapped = np.stack([df[:, 1], df[:, 0], df[:, 2]], axis=1)  # x, y, t
+                df_display = pd.DataFrame(df_swapped, columns=["x", "y", "t"])
+                st.markdown(df_display.to_html(index=False), unsafe_allow_html=True)
+
+        if show_all or show_trajectory:
+            st.image("gaze_trajectory.png", caption="Траектория взгляда с градиентом времени")
 
 
 if __name__ == '__main__':
-    parser = get_args_parser_predict()
+    parser = get_args_parser_streamlit()
     args = parser.parse_args()
     main(args)

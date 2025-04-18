@@ -44,7 +44,7 @@ def get_args_parser_test():
     parser.add_argument('--condition', default='present', type=str, help="Search condition (present/absent)")
     parser.add_argument('--zerogaze', default=False, action='store_true', help="ZeroGaze setting flag")
     parser.add_argument('--task', default='car', type=str, help="if evaluation is in ZeroGaze setting, the unseen target to evaluate the model")
-    parser.add_argument('--num_samples', default=10, type=int, help="Number of scanpaths sampled per test case")
+    parser.add_argument('--num_samples', default=1, type=int, help="Number of scanpaths sampled per test case")
     parser.add_argument('--sem_dir', type=str, required=True, help='Directory with semantic sequence files')
     parser.add_argument('--stuff_map_dir', type=str, required=True, help='Directory with stuffthing_maps')
 
@@ -103,19 +103,32 @@ def get_args_parser_predict():
     parser.add_argument('--condition', default='present', type=str, help="Search condition (present/absent)")
     parser.add_argument('--zerogaze', default=False, action='store_true', help="ZeroGaze setting flag")
     parser.add_argument('--task', default='car', type=str, help="if evaluation is in ZeroGaze setting, the unseen target to evaluate the model")
-    parser.add_argument('--num_samples', default=10, type=int, help="Number of scanpaths sampled per test case")
+    parser.add_argument('--num_samples', default=1, type=int, help="Number of scanpaths sampled per test case")
     parser.add_argument('--target_task', type=str, required=True, help="Target task to evaluate (e.g., 'car')")
     parser.add_argument('--target_image', type=str, required=True, help="Target image filename (e.g., '000000491881.jpg')")
-    parser.add_argument('--target_condition', type=str, required=True, choices=['present', 'absent'], help="Search condition for target image")
 
     return parser
 
-def get_args_parser_working_with_model():
-    parser = argparse.ArgumentParser('Gaze Transformer Worker', add_help=False)
-
-    parser.add_argument('--target_task', type=str, required=True, help="Target task to evaluate (e.g., 'car')")
-    parser.add_argument('--target_image', type=str, required=True, help="Target image filename (e.g., '000000491881.jpg')")
-    parser.add_argument('--target_condition', type=str, required=True, choices=['present', 'absent'], help="Search condition for target image")
+def get_args_parser_streamlit():
+    parser = argparse.ArgumentParser('Gaze Transformer Tester', add_help=False)
+    parser.add_argument('--dataset_dir', default= './dataset', type=str, help="Dataset Directory")
+    parser.add_argument('--img_ftrs_dir', default= './dataset/image_features', type=str, help="Directory of precomputed ResNet features")
+    parser.add_argument('--im_h', default=20, type=int, help="Height of feature map input to encoder")
+    parser.add_argument('--im_w', default=32, type=int, help="Width of feature map input to encoder")
+    parser.add_argument('--patch_size', default=16, type=int, help="Patch size of feature map input with respect to fixation image dimensions (320X512)")
+    parser.add_argument('--max_len', default=7, type=int, help="Maximum length of scanpath")
+    parser.add_argument('--num_encoder', default=6, type=int, help="Number of transformer encoder layers")
+    parser.add_argument('--num_decoder', default=6, type=int, help="Number of transformer decoder layers")
+    parser.add_argument('--hidden_dim', default=512, type=int, help="Hidden dimensionality of transformer layers")
+    parser.add_argument('--nhead', default=8, type=int, help="Number of heads for transformer attention layers")
+    parser.add_argument('--img_hidden_dim', default=2048, type=int, help="Channel size of initial ResNet feature map")
+    parser.add_argument('--lm_hidden_dim', default=768, type=int, help="Dimensionality of target embeddings from language model")
+    parser.add_argument('--trained_model', default='./checkpoints/gazeformer_cocosearch_TP.pkg', type=str, help="Trained model checkpoint to run for inference")
+    parser.add_argument('--seed', default=42, type=int, help="Seed")
+    parser.add_argument('--cuda', default=0, type=int, help="CUDA core to load models and data")
+    parser.add_argument('--condition', default='present', type=str, help="Search condition (present/absent)")
+    parser.add_argument('--zerogaze', default=True, action='store_true', help="ZeroGaze setting flag")
+    parser.add_argument('--num_samples', default=1, type=int, help="Number of scanpaths sampled per test case")
 
     return parser
 
