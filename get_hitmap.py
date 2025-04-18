@@ -81,7 +81,7 @@ def save_gaze_trajectory_with_time_gradient(base_img, fixation_list, filename):
     plt.savefig(filename, dpi=300, bbox_inches='tight', pad_inches=0)
     plt.close()
 
-# Сохранение результатов
+
 save_heatmap(img, heatmap_simple, 'heatmap_simple1.png')
 save_heatmap(img, heatmap_weighted, 'heatmap_time_weighted1.png')
 save_gaze_trajectory_with_time_gradient(img, fixations_data, 'gaze_trajectory1.png')

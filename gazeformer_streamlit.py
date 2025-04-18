@@ -53,7 +53,6 @@ def resize_with_padding(img, target_size=(512, 320), fill_color=(0, 0, 0)):
 
     img_resized = img.resize((new_width, new_height), Image.ANTIALIAS)
 
-    # Создаём новое изображение с чёрным фоном
     new_img = Image.new("RGB", target_size, fill_color)
     paste_x = (target_size[0] - new_width) // 2
     paste_y = (target_size[1] - new_height) // 2
@@ -263,11 +262,9 @@ def main(args):
 
         st.image(image, caption="Исходное изображение", use_container_width=True)
 
-        # Сохраняем обработанное изображение во временный файл
         temp_image_path = "temp_image.jpg"
         image.save(temp_image_path)
 
-        # Опции отображения
         st.sidebar.subheader("Опции отображения")
 
         show_heatmap_simple = st.sidebar.checkbox("Тепловая карта (простая)", value=False)
